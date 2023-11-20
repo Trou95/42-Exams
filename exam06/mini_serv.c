@@ -9,7 +9,7 @@ typedef struct {
 } t_client;
 t_client clients[10000] = {[0 ... 9999] = 1,1}; // You can use memset(&clients, 1, sizeof(clients)); instead
 char buffer[10000], c;
-int serv_fd, max_fd, client_count = 0;
+int serv_fd, conn_fd, max_fd, client_count = 0;
 fd_set sockets,r_fd, w_fd;
 
 int ft_error(char* msg) {
@@ -37,39 +37,36 @@ int main(int ac, char** av) {
     FD_ZERO(&sockets);
     FD_SET(serv_fd, &sockets);
     max_fd = serv_fd;
-    while(1) {
+    for(int fd = 0; fd <= max_fd; fd++) {
         r_fd = w_fd = sockets;
         if(select(max_fd + 1, &r_fd, &w_fd, NULL, NULL) < 0)
             continue;
-        for(int fd = 0; fd <= max_fd; fd++) {
-            if(FD_ISSET(fd, &r_fd)) {
-                if(fd == serv_fd) {
-                    int conn_fd = accept(serv_fd, NULL, NULL);
-                    if(conn_fd < 0)
-                        continue;
-                    sprintf(buffer, "server: client %d just arrived\n", client_count);
-                    send_all(buffer,conn_fd);
-                    clients[conn_fd].id = client_count++;
-                    FD_SET(conn_fd, &sockets);
-                    max_fd = conn_fd > max_fd ? conn_fd : max_fd;
+        if(FD_ISSET(fd, &r_fd)) {
+            if(fd == serv_fd) {
+                if((conn_fd = accept(serv_fd, NULL, NULL) < 0))
+                    continue;
+                sprintf(buffer, "server: client %d just arrived\n", client_count);
+                send_all(buffer,conn_fd);
+                clients[conn_fd].id = client_count++;
+                FD_SET(conn_fd, &sockets);
+                max_fd = conn_fd > max_fd ? conn_fd : max_fd;
+            }
+            else {
+                if(recv(fd, &c, 1, 0) <= 0) {
+                    sprintf(buffer, "server: client %d just left\n", clients[fd].id);
+                    send_all(buffer, fd);
+                    FD_CLR(fd, &sockets);
+                    close(fd);
                 }
                 else {
-                    if(recv(fd, &c, 1, 0) <= 0) {
-                        sprintf(buffer, "server: client %d just left\n", clients[fd].id);
+                    if(clients[fd].new) {
+                        clients[fd].new = 0;
+                        sprintf(buffer, "client %d: ", clients[fd].id);
                         send_all(buffer, fd);
-                        FD_CLR(fd, &sockets);
-                        close(fd);
                     }
-                    else {
-                        if(clients[fd].new) {
-                            clients[fd].new = 0;
-                            sprintf(buffer, "client %d: ", clients[fd].id);
-                            send_all(buffer, fd);
-                        }
-                        if(c == '\n')
-                            clients[fd].new = 1;
-                        send_all(&c, fd);
-                    }
+                    if(c == '\n')
+                        clients[fd].new = 1;
+                    send_all(&c, fd);
                 }
             }
         }
