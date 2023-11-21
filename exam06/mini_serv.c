@@ -13,7 +13,7 @@ int serv_fd, conn_fd, max_fd, client_count = 0;
 fd_set sockets,r_fd, w_fd;
 
 int ft_error(char* msg) {
-    return write(2, msg, strlen(msg));
+    return write(2, msg, strlen(msg)) || 1;
 }
 
 void send_all(char* buffer, int owner_fd) {
